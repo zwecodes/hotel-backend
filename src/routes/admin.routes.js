@@ -534,4 +534,137 @@ const [bookingStats] = await pool.query(
     });
   }
 });
+
+
+
+/* HOTEL IMAGES */
+router.get('/hotels/:id/images', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const [images] = await pool.query(
+      'SELECT * FROM hotel_images WHERE hotel_id = ? ORDER BY sort_order ASC',
+      [req.params.id]
+    );
+    res.json({ success: true, data: images });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.post('/hotels/:id/images', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { image_url, is_primary = 0 } = req.body;
+    const hotelId = req.params.id;
+
+    if (!image_url) return res.status(400).json({ success: false, message: 'image_url is required' });
+
+    // If setting as primary, unset others first
+    if (is_primary) {
+      await pool.query('UPDATE hotel_images SET is_primary = 0 WHERE hotel_id = ?', [hotelId]);
+    }
+
+    // Get current max sort_order
+    const [[{ maxOrder }]] = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM hotel_images WHERE hotel_id = ?',
+      [hotelId]
+    );
+
+    const [result] = await pool.query(
+      'INSERT INTO hotel_images (hotel_id, image_url, is_primary, sort_order) VALUES (?, ?, ?, ?)',
+      [hotelId, image_url, is_primary ? 1 : 0, maxOrder + 1]
+    );
+
+    res.status(201).json({ success: true, imageId: result.insertId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.delete('/hotels/:id/images/:imageId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM hotel_images WHERE id = ? AND hotel_id = ?', [req.params.imageId, req.params.id]);
+    res.json({ success: true, message: 'Image deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/hotels/:id/images/:imageId/primary', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('UPDATE hotel_images SET is_primary = 0 WHERE hotel_id = ?', [req.params.id]);
+    await pool.query('UPDATE hotel_images SET is_primary = 1 WHERE id = ? AND hotel_id = ?', [req.params.imageId, req.params.id]);
+    res.json({ success: true, message: 'Primary image updated' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+/* ROOM IMAGES */
+router.get('/rooms/:id/images', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const [images] = await pool.query(
+      'SELECT * FROM room_images WHERE room_id = ? ORDER BY sort_order ASC',
+      [req.params.id]
+    );
+    res.json({ success: true, data: images });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.post('/rooms/:id/images', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { image_url, is_primary = 0 } = req.body;
+    const roomId = req.params.id;
+
+    if (!image_url) return res.status(400).json({ success: false, message: 'image_url is required' });
+
+    if (is_primary) {
+      await pool.query('UPDATE room_images SET is_primary = 0 WHERE room_id = ?', [roomId]);
+    }
+
+    const [[{ maxOrder }]] = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM room_images WHERE room_id = ?',
+      [roomId]
+    );
+
+    const [result] = await pool.query(
+      'INSERT INTO room_images (room_id, image_url, is_primary, sort_order) VALUES (?, ?, ?, ?)',
+      [roomId, image_url, is_primary ? 1 : 0, maxOrder + 1]
+    );
+
+    res.status(201).json({ success: true, imageId: result.insertId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.delete('/rooms/:id/images/:imageId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM room_images WHERE id = ? AND room_id = ?', [req.params.imageId, req.params.id]);
+    res.json({ success: true, message: 'Image deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/rooms/:id/images/:imageId/primary', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('UPDATE room_images SET is_primary = 0 WHERE room_id = ?', [req.params.id]);
+    await pool.query('UPDATE room_images SET is_primary = 1 WHERE id = ? AND room_id = ?', [req.params.imageId, req.params.id]);
+    res.json({ success: true, message: 'Primary image updated' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
+
 module.exports = router;

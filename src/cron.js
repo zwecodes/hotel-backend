@@ -3,7 +3,7 @@ const pool = require('./config/db');
 
 // Runs every hour — auto-cancels unpaid bookings 
 // where check-in is within 24 hours
-cron.schedule('* * * * *', async () => {
+cron.schedule('0 * * * *', async () => {
   console.log('[CRON] Checking for expired unpaid bookings...');
   try {
     const [result] = await pool.query(`

@@ -6,8 +6,14 @@ const router = express.Router();
 /* GET ALL HOTELS */
 router.get('/', async (req, res) => {
   try {
-    const [hotels] = await pool.query('SELECT * FROM hotels');
-
+    const [hotels] = await pool.query(
+      `SELECT h.*,
+        (SELECT hi.image_url FROM hotel_images hi
+         WHERE hi.hotel_id = h.id AND hi.is_primary = 1
+         LIMIT 1) AS primary_image_url
+       FROM hotels h
+       ORDER BY h.created_at DESC`
+    );
     res.status(200).json({
       success: true,
       count: hotels.length,
@@ -33,7 +39,12 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hotel not found' });
     }
 
-    res.status(200).json({ success: true, data: hotel[0] });
+    const [images] = await pool.query(
+      'SELECT * FROM hotel_images WHERE hotel_id = ? ORDER BY sort_order ASC',
+      [id]
+    );
+
+    res.status(200).json({ success: true, data: { ...hotel[0], images } });
 
   } catch (error) {
     console.error('Get Hotel By ID Error:', error);
@@ -78,10 +89,24 @@ router.get('/:hotelId/rooms/availability', async (req, res) => {
       [check_out, check_in, hotelId]
     );
 
+    const roomIds = rooms.map(r => r.id);
+    let images = [];
+    if (roomIds.length > 0) {
+      [images] = await pool.query(
+        'SELECT * FROM room_images WHERE room_id IN (?) ORDER BY sort_order ASC',
+        [roomIds]
+      );
+    }
+
+    const data = rooms.map(room => ({
+      ...room,
+      images: images.filter(img => img.room_id === room.id)
+    }));
+
     res.status(200).json({
       success: true,
-      count: rooms.length,
-      data: rooms
+      count: data.length,
+      data
     });
 
   } catch (error) {
@@ -100,7 +125,21 @@ router.get('/:hotelId/rooms', async (req, res) => {
       [hotelId]
     );
 
-    res.json({ success: true, count: rooms.length, data: rooms });
+    const roomIds = rooms.map(r => r.id);
+    let images = [];
+    if (roomIds.length > 0) {
+      [images] = await pool.query(
+        'SELECT * FROM room_images WHERE room_id IN (?) ORDER BY sort_order ASC',
+        [roomIds]
+      );
+    }
+
+    const data = rooms.map(room => ({
+      ...room,
+      images: images.filter(img => img.room_id === room.id)
+    }));
+
+    res.json({ success: true, count: data.length, data });
 
   } catch (error) {
     console.error(error);
