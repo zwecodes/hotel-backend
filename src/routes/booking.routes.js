@@ -163,6 +163,7 @@ router.get('/my', authMiddleware, async (req, res) => {
       [details] = await pool.query(
         `SELECT 
           bd.booking_id,
+          bd.room_id,
           r.room_type,
           h.name AS hotel_name,
           h.address,
@@ -177,13 +178,37 @@ router.get('/my', authMiddleware, async (req, res) => {
       );
     }
 
+    // Fetch all room images for every room that appears in these bookings
+    let roomImages = [];
+    const roomIds = [...new Set(details.map(d => d.room_id))];
+    if (roomIds.length > 0) {
+      [roomImages] = await pool.query(
+        `SELECT room_id, id, image_url, is_primary, sort_order
+         FROM room_images
+         WHERE room_id IN (?)
+         ORDER BY room_id, is_primary DESC, sort_order ASC`,
+        [roomIds]
+      );
+    }
+
+    // Group images by room_id for fast lookup
+    const imagesByRoomId = roomIds.reduce((acc, roomId) => {
+      acc[roomId] = roomImages
+        .filter(img => img.room_id === roomId)
+        .map(({ room_id, ...rest }) => rest);
+      return acc;
+    }, {});
+
     const data = bookings.map(booking => ({
       ...booking,
       hotel_name: details.find(d => d.booking_id === booking.id)?.hotel_name || null,
       hotel_address: details.find(d => d.booking_id === booking.id)?.address || null,
       rooms: details
         .filter(d => d.booking_id === booking.id)
-        .map(({ booking_id, hotel_name, address, ...rest }) => rest)
+        .map(({ booking_id, hotel_name, address, ...rest }) => ({
+          ...rest,
+          images: imagesByRoomId[rest.room_id] || [],
+        }))
     }));
 
     res.status(200).json({
@@ -317,6 +342,42 @@ router.patch('/:id/pay', authMiddleware, async (req, res) => {
     });
   }
 });
+
+
+/* PAY AT HOTEL */
+router.patch('/:id/pay-at-hotel', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const bookingId = req.params.id;
+
+    const [bookings] = await pool.query(
+      'SELECT * FROM bookings WHERE id = ? AND user_id = ?',
+      [bookingId, userId]
+    );
+
+    if (bookings.length === 0) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    const booking = bookings[0];
+
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cannot confirm a cancelled booking' });
+    }
+
+    await pool.query(
+      `UPDATE bookings SET status = 'confirmed', payment_status = 'pay_at_hotel' WHERE id = ?`,
+      [bookingId]
+    );
+
+    res.status(200).json({ success: true, message: 'Booking confirmed. Pay at hotel on arrival.' });
+
+  } catch (error) {
+    console.error('Pay At Hotel Error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 
 
 module.exports = router;
