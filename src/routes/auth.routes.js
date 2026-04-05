@@ -1,17 +1,98 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
 const authController = require('../controllers/auth.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+// ── Rate limiters ─────────────────────────────────────────
 
-const authMiddleware = require('../middlewares/auth.middleware');
+// Login: 10 attempts per 15 minutes per IP
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many login attempts. Please try again in 15 minutes.',
+  },
+});
+
+// Register: 5 attempts per hour per IP
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many registration attempts. Please try again in an hour.',
+  },
+});
+
+// ── Validation middleware ─────────────────────────────────
+
+const validateLogin = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email address')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required'),
+];
+
+const validateRegister = [
+  body('name')
+    .trim()
+    .notEmpty().withMessage('Full name is required')
+    .isLength({ min: 2 }).withMessage('Name must be at least 2 characters')
+    .escape(),
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email address')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+];
+
+// ── Validation result handler ─────────────────────────────
+const handleValidation = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: errors.array()[0].msg, // Return first error message
+      errors: errors.array(),
+    });
+  }
+  next();
+};
+
+// ── Routes ───────────────────────────────────────────────
+
+router.post(
+  '/login',
+  loginLimiter,
+  validateLogin,
+  handleValidation,
+  authController.login
+);
+
+router.post(
+  '/register',
+  registerLimiter,
+  validateRegister,
+  handleValidation,
+  authController.register
+);
 
 router.get('/me', authMiddleware, (req, res) => {
   res.json(req.user);
 });
-
-
 
 module.exports = router;

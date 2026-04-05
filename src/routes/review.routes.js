@@ -65,6 +65,7 @@ router.get('/hotel/:hotelId', async (req, res) => {
     const [reviews] = await pool.query(
       `SELECT 
         r.id,
+        r.user_id,
         r.rating,
         r.comment,
         r.created_at,
@@ -116,6 +117,60 @@ router.get('/hotel/:hotelId/rating', async (req, res) => {
   } catch (error) {
     console.error('Rating Error:', error);
 
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+
+
+/* EDIT REVIEW */
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const reviewId = req.params.id;
+    const { rating, comment } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    const [reviews] = await pool.query(
+      'SELECT * FROM reviews WHERE id = ?',
+      [reviewId]
+    );
+
+    if (reviews.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found'
+      });
+    }
+
+    if (reviews[0].user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only edit your own reviews'
+      });
+    }
+
+    await pool.query(
+      'UPDATE reviews SET rating = ?, comment = ? WHERE id = ?',
+      [rating, comment, reviewId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Review updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Edit Review Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
