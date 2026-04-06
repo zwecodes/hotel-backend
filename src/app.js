@@ -1,6 +1,7 @@
-const express = require('express');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
+const express    = require('express');
+const cors       = require('cors');
+const rateLimit  = require('express-rate-limit');
+const compression = require('compression');
 
 const authRoutes    = require('./routes/auth.routes');
 const userRoutes    = require('./routes/user.routes');
@@ -16,6 +17,10 @@ const app = express();
 // ── Trust proxy (required for Railway / reverse proxies) ──
 app.set('trust proxy', 1);
 
+// ── Compression — gzip all responses ─────────────────────
+// Reduces JSON response size by ~70%, speeds up API for all clients
+app.use(compression());
+
 // ── CORS ─────────────────────────────────────────────────
 app.use(cors({
   origin: [
@@ -30,8 +35,8 @@ app.use(express.json());
 
 // ── Global rate limiter — all routes ─────────────────────
 const globalLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100,            // 100 requests per minute per IP
+  windowMs: 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
