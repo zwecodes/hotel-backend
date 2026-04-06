@@ -7,7 +7,6 @@ const router = express.Router();
 /* ADD REVIEW */
 router.post('/', authMiddleware, async (req, res) => {
   try {
-
     const userId = req.user.id;
     const { hotel_id, rating, comment } = req.body;
 
@@ -38,30 +37,32 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({
         success: false,
         message: 'You already reviewed this hotel'
       });
     }
-
     console.error('Create Review Error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-
-/* GET REVIEWS OF A HOTEL */
+/* GET REVIEWS OF A HOTEL — paginated */
 router.get('/hotel/:hotelId', async (req, res) => {
   try {
+    const hotelId  = req.params.hotelId;
+    const page     = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit    = Math.max(1, parseInt(req.query.limit) || 5);
+    const offset   = (page - 1) * limit;
 
-    const hotelId = req.params.hotelId;
+    // Get total count
+    const [[{ total }]] = await pool.query(
+      'SELECT COUNT(*) AS total FROM reviews WHERE hotel_id = ?',
+      [hotelId]
+    );
 
+    // Get paginated reviews
     const [reviews] = await pool.query(
       `SELECT 
         r.id,
@@ -73,31 +74,29 @@ router.get('/hotel/:hotelId', async (req, res) => {
        FROM reviews r
        JOIN users u ON r.user_id = u.id
        WHERE r.hotel_id = ?
-       ORDER BY r.created_at DESC`,
-      [hotelId]
+       ORDER BY r.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [hotelId, limit, offset]
     );
 
     res.json({
       success: true,
+      total,
+      page,
+      limit,
       count: reviews.length,
       data: reviews
     });
 
   } catch (error) {
     console.error('Get Reviews Error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 /* GET AVERAGE HOTEL RATING */
 router.get('/hotel/:hotelId/rating', async (req, res) => {
   try {
-
     const hotelId = req.params.hotelId;
 
     const [result] = await pool.query(
@@ -109,27 +108,18 @@ router.get('/hotel/:hotelId/rating', async (req, res) => {
       [hotelId]
     );
 
-    res.json({
-      success: true,
-      data: result[0]
-    });
+    res.json({ success: true, data: result[0] });
 
   } catch (error) {
     console.error('Rating Error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-
 
 /* EDIT REVIEW */
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId   = req.user.id;
     const reviewId = req.params.id;
     const { rating, comment } = req.body;
 
@@ -146,17 +136,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
     );
 
     if (reviews.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Review not found'
-      });
+      return res.status(404).json({ success: false, message: 'Review not found' });
     }
 
     if (reviews[0].user_id !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only edit your own reviews'
-      });
+      return res.status(403).json({ success: false, message: 'You can only edit your own reviews' });
     }
 
     await pool.query(
@@ -164,17 +148,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
       [rating, comment, reviewId]
     );
 
-    res.json({
-      success: true,
-      message: 'Review updated successfully'
-    });
+    res.json({ success: true, message: 'Review updated successfully' });
 
   } catch (error) {
     console.error('Edit Review Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
