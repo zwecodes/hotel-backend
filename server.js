@@ -13,15 +13,17 @@ const REQUIRED_ENV_VARS = [
 const missingVars = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
 
 if (missingVars.length > 0) {
+  // Use console.error here intentionally — logger not yet available
   console.error('\n❌ Missing required environment variables:');
   missingVars.forEach(key => console.error(`   - ${key}`));
   console.error('\nServer cannot start. Please set the above variables in your .env file or hosting platform.\n');
   process.exit(1);
 }
 
-// ── Step 2: Load app and dependencies ────────────────────
-const app  = require('./src/app');
-const pool = require('./src/config/db');
+// ── Step 2: Load logger + app + dependencies ──────────────
+const logger = require('./src/utils/logger');
+const app    = require('./src/app');
+const pool   = require('./src/config/db');
 
 // Start cron jobs after env validation
 require('./src/cron');
@@ -33,53 +35,49 @@ const ENV  = process.env.NODE_ENV || 'development';
 async function startServer() {
   try {
     await pool.query('SELECT 1');
-    console.log('✅ Database connected successfully');
+    logger.info('Database connected successfully');
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    console.error('Server will start but database operations will fail.');
+    logger.error('Database connection failed', { error: error.message });
     // Don't exit — let Railway logs show the issue without crashing the container
   }
 
   // ── Step 4: Start Express server ──────────────────────
   const server = app.listen(PORT, () => {
-    console.log(`\n🚀 Server running in ${ENV} mode on port ${PORT}\n`);
+    logger.info(`Server running in ${ENV} mode on port ${PORT}`);
   });
 
   // ── Step 5: Graceful shutdown ─────────────────────────
-  // When Railway or the OS sends a shutdown signal, close connections cleanly
   const shutdown = async (signal) => {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logger.info(`${signal} received. Shutting down gracefully...`);
 
     server.close(async () => {
-      console.log('HTTP server closed.');
+      logger.info('HTTP server closed');
       try {
         await pool.end();
-        console.log('Database pool closed.');
+        logger.info('Database pool closed');
       } catch (err) {
-        console.error('Error closing database pool:', err.message);
+        logger.error('Error closing database pool', { error: err.message });
       }
       process.exit(0);
     });
 
-    // Force exit if graceful shutdown takes too long
     setTimeout(() => {
-      console.error('Forced shutdown after timeout.');
+      logger.error('Forced shutdown after timeout');
       process.exit(1);
     }, 10000);
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM')); // Railway sends this
-  process.on('SIGINT',  () => shutdown('SIGINT'));  // Ctrl+C in local dev
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
 
   // ── Step 6: Handle uncaught errors ───────────────────
   process.on('uncaughtException', (err) => {
-    console.error('Uncaught Exception:', err);
+    logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
     shutdown('uncaughtException');
   });
 
   process.on('unhandledRejection', (reason) => {
-    console.error('Unhandled Promise Rejection:', reason);
-    // Don't exit on unhandled rejections — just log them
+    logger.warn('Unhandled Promise Rejection', { reason: String(reason) });
   });
 }
 

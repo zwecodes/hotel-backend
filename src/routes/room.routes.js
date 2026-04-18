@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../config/db');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -16,16 +17,11 @@ router.get('/hotel/:hotel_id', async (req, res) => {
     res.status(200).json({
       success: true,
       count: rooms.length,
-      data: rooms
+      data: rooms,
     });
-
   } catch (error) {
-    console.error('Get Rooms Error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    logger.error('Get Rooms Error:', { error: error.message, hotel_id: req.params.hotel_id });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

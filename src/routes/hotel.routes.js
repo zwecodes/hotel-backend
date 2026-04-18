@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../config/db');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -17,10 +18,10 @@ router.get('/', async (req, res) => {
     res.status(200).json({
       success: true,
       count: hotels.length,
-      data: hotels
+      data: hotels,
     });
   } catch (error) {
-    console.error('Get Hotels Error:', error);
+    logger.error('Get Hotels Error', { error: error.message });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -30,10 +31,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [hotel] = await pool.query(
-      'SELECT * FROM hotels WHERE id = ?',
-      [id]
-    );
+    const [hotel] = await pool.query('SELECT * FROM hotels WHERE id = ?', [id]);
 
     if (hotel.length === 0) {
       return res.status(404).json({ success: false, message: 'Hotel not found' });
@@ -45,14 +43,13 @@ router.get('/:id', async (req, res) => {
     );
 
     res.status(200).json({ success: true, data: { ...hotel[0], images } });
-
   } catch (error) {
-    console.error('Get Hotel By ID Error:', error);
+    logger.error('Get Hotel By ID Error', { error: error.message, hotelId: req.params.id });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-/* GET ROOMS WITH LIVE AVAILABILITY — must be before /:hotelId/rooms */
+/* GET ROOMS WITH LIVE AVAILABILITY */
 router.get('/:hotelId/rooms/availability', async (req, res) => {
   try {
     const { hotelId } = req.params;
@@ -61,19 +58,13 @@ router.get('/:hotelId/rooms/availability', async (req, res) => {
     if (!check_in || !check_out) {
       return res.status(400).json({
         success: false,
-        message: 'check_in and check_out are required'
+        message: 'check_in and check_out are required',
       });
     }
 
     const [rooms] = await pool.query(
       `SELECT 
-        r.id,
-        r.hotel_id,
-        r.room_type,
-        r.price_per_night,
-        r.capacity,
-        r.total_rooms,
-        r.description,
+        r.id, r.hotel_id, r.room_type, r.price_per_night, r.capacity, r.total_rooms, r.description,
         r.total_rooms - COALESCE(
           (SELECT SUM(bd.quantity)
            FROM booking_details bd
@@ -100,17 +91,12 @@ router.get('/:hotelId/rooms/availability', async (req, res) => {
 
     const data = rooms.map(room => ({
       ...room,
-      images: images.filter(img => img.room_id === room.id)
+      images: images.filter(img => img.room_id === room.id),
     }));
 
-    res.status(200).json({
-      success: true,
-      count: data.length,
-      data
-    });
-
+    res.status(200).json({ success: true, count: data.length, data });
   } catch (error) {
-    console.error('Get Room Availability Error:', error);
+    logger.error('Get Room Availability Error', { error: error.message, hotelId: req.params.hotelId });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -120,10 +106,7 @@ router.get('/:hotelId/rooms', async (req, res) => {
   try {
     const hotelId = req.params.hotelId;
 
-    const [rooms] = await pool.query(
-      'SELECT * FROM rooms WHERE hotel_id = ?',
-      [hotelId]
-    );
+    const [rooms] = await pool.query('SELECT * FROM rooms WHERE hotel_id = ?', [hotelId]);
 
     const roomIds = rooms.map(r => r.id);
     let images = [];
@@ -136,13 +119,12 @@ router.get('/:hotelId/rooms', async (req, res) => {
 
     const data = rooms.map(room => ({
       ...room,
-      images: images.filter(img => img.room_id === room.id)
+      images: images.filter(img => img.room_id === room.id),
     }));
 
     res.json({ success: true, count: data.length, data });
-
   } catch (error) {
-    console.error(error);
+    logger.error('Get Rooms Error', { error: error.message, hotelId: req.params.hotelId });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

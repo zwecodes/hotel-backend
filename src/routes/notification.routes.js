@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const authMiddleware = require('../middlewares/auth.middleware');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -18,12 +19,12 @@ router.get('/', authMiddleware, async (req, res) => {
     const unreadCount = rows.filter(n => !n.is_read).length;
     res.json({ success: true, data: rows, unread_count: unreadCount });
   } catch (err) {
-    console.error('Get Notifications Error:', err);
+    logger.error('Get Notifications Error', { error: err.message, userId: req.user.id });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-/* PATCH mark all as read — must be before /:id route */
+/* PATCH mark all as read */
 router.patch('/read-all', authMiddleware, async (req, res) => {
   try {
     await pool.query(
@@ -32,7 +33,7 @@ router.patch('/read-all', authMiddleware, async (req, res) => {
     );
     res.json({ success: true, message: 'All notifications marked as read' });
   } catch (err) {
-    console.error('Read All Notifications Error:', err);
+    logger.error('Read All Notifications Error', { error: err.message, userId: req.user.id });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -46,7 +47,7 @@ router.patch('/:id/read', authMiddleware, async (req, res) => {
     );
     res.json({ success: true, message: 'Notification marked as read' });
   } catch (err) {
-    console.error('Read Notification Error:', err);
+    logger.error('Read Notification Error', { error: err.message, userId: req.user.id });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -60,7 +61,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     );
     res.json({ success: true, message: 'Notification deleted' });
   } catch (err) {
-    console.error('Delete Notification Error:', err);
+    logger.error('Delete Notification Error', { error: err.message, userId: req.user.id });
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
