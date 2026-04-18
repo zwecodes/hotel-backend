@@ -114,6 +114,24 @@ router.post('/', authMiddleware, async (req, res) => {
 
     await connection.commit();
 
+    // ── Notification: Booking Reserved (Pay Later) ──
+    try {
+      const checkInFormatted = new Date(check_in_date).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, booking_id)
+         VALUES (?, 'booking_reserved', 'Booking Reserved', ?, ?)`,
+        [
+          userId,
+          `Your booking #${bookingId} is reserved for check-in on ${checkInFormatted}. Complete payment before check-in to confirm.`,
+          bookingId
+        ]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert error (non-fatal):', notifErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -178,7 +196,6 @@ router.get('/my', authMiddleware, async (req, res) => {
       );
     }
 
-    // Fetch all room images for every room that appears in these bookings
     let roomImages = [];
     const roomIds = [...new Set(details.map(d => d.room_id))];
     if (roomIds.length > 0) {
@@ -191,7 +208,6 @@ router.get('/my', authMiddleware, async (req, res) => {
       );
     }
 
-    // Group images by room_id for fast lookup
     const imagesByRoomId = roomIds.reduce((acc, roomId) => {
       acc[roomId] = roomImages
         .filter(img => img.room_id === roomId)
@@ -270,6 +286,24 @@ router.patch('/:id/cancel', authMiddleware, async (req, res) => {
       [bookingId]
     );
 
+    // ── Notification: Booking Cancelled by user ──
+    try {
+      const checkInFormatted = new Date(booking.check_in_date).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, booking_id)
+         VALUES (?, 'booking_cancelled', 'Booking Cancelled', ?, ?)`,
+        [
+          userId,
+          `Your booking #${bookingId} (check-in ${checkInFormatted}) has been cancelled successfully.`,
+          bookingId
+        ]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert error (non-fatal):', notifErr.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Booking cancelled successfully'
@@ -328,6 +362,24 @@ router.patch('/:id/pay', authMiddleware, async (req, res) => {
       [bookingId]
     );
 
+    // ── Notification: Booking Confirmed (paid online) ──
+    try {
+      const checkInFormatted = new Date(booking.check_in_date).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, booking_id)
+         VALUES (?, 'booking_confirmed', '🎉 Booking Confirmed!', ?, ?)`,
+        [
+          userId,
+          `Payment received for booking #${bookingId}. You're all set for check-in on ${checkInFormatted}. Enjoy your stay!`,
+          bookingId
+        ]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert error (non-fatal):', notifErr.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Payment successful. Booking confirmed.'
@@ -370,6 +422,24 @@ router.patch('/:id/pay-at-hotel', authMiddleware, async (req, res) => {
       [bookingId]
     );
 
+    // ── Notification: Booking Confirmed (pay at hotel) ──
+    try {
+      const checkInFormatted = new Date(booking.check_in_date).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, booking_id)
+         VALUES (?, 'booking_confirmed', '🎉 Booking Confirmed!', ?, ?)`,
+        [
+          userId,
+          `Booking #${bookingId} is confirmed. Payment due at hotel on check-in (${checkInFormatted}). See you there!`,
+          bookingId
+        ]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert error (non-fatal):', notifErr.message);
+    }
+
     res.status(200).json({ success: true, message: 'Booking confirmed. Pay at hotel on arrival.' });
 
   } catch (error) {
@@ -377,7 +447,6 @@ router.patch('/:id/pay-at-hotel', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 
 module.exports = router;
