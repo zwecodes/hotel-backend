@@ -94,8 +94,8 @@ router.put('/profile/password', authMiddleware, async (req, res) => {
     if (!current_password || !new_password) {
       return res.status(400).json({ success: false, message: 'Both current and new password are required' });
     }
-    if (new_password.length < 6) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    if (new_password.length < 10) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 10 characters' });
     }
 
     const [users] = await pool.query('SELECT password FROM users WHERE id = ?', [userId]);
@@ -109,11 +109,15 @@ router.put('/profile/password', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
-    const hashed = await bcrypt.hash(new_password, 10);
+    const hashed = await bcrypt.hash(new_password, 12);
     await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashed, userId]);
+    await pool.query(
+      `UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL`,
+      [userId]
+    );
 
     logger.info('Password changed', { userId });
-    res.status(200).json({ success: true, message: 'Password changed successfully' });
+    res.status(200).json({ success: true, message: 'Password changed successfully. Please sign in again.' });
   } catch (error) {
     logger.error('Change Password Error', { error: error.message, userId: req.user.id });
     res.status(500).json({ success: false, message: 'Server error' });

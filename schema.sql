@@ -6,6 +6,8 @@
 -- ============================================================
 
 -- Drop tables in safe order (children before parents)
+DROP TABLE IF EXISTS `password_reset_tokens`;
+DROP TABLE IF EXISTS `refresh_tokens`;
 DROP TABLE IF EXISTS `notifications`;
 DROP TABLE IF EXISTS `reviews`;
 DROP TABLE IF EXISTS `booking_details`;
@@ -194,6 +196,39 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `fk_n_user` (`user_id`),
   CONSTRAINT `fk_n_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- ============================================================
+-- Table: refresh_tokens (HttpOnly cookie sessions)
+-- ============================================================
+CREATE TABLE `refresh_tokens` (
+  `id`         int           NOT NULL AUTO_INCREMENT,
+  `user_id`    int           NOT NULL,
+  `token_hash` char(64)      NOT NULL,
+  `expires_at` datetime      NOT NULL,
+  `revoked_at` datetime      DEFAULT NULL,
+  `created_at` timestamp     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_refresh_token_hash` (`token_hash`),
+  KEY `idx_refresh_user` (`user_id`),
+  KEY `idx_refresh_expires` (`expires_at`),
+  CONSTRAINT `fk_refresh_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- ============================================================
+-- Table: password_reset_tokens
+-- ============================================================
+CREATE TABLE `password_reset_tokens` (
+  `id`         int           NOT NULL AUTO_INCREMENT,
+  `user_id`    int           NOT NULL,
+  `token_hash` char(64)      NOT NULL,
+  `expires_at` datetime      NOT NULL,
+  `used_at`    datetime      DEFAULT NULL,
+  `created_at` timestamp     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_reset_token_hash` (`token_hash`),
+  KEY `idx_reset_user` (`user_id`),
+  CONSTRAINT `fk_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- ============================================================

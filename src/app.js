@@ -1,5 +1,6 @@
 const express    = require('express');
 const cors       = require('cors');
+const cookieParser = require('cookie-parser');
 const rateLimit  = require('express-rate-limit');
 const compression = require('compression');
 
@@ -19,19 +20,31 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ── Compression — gzip all responses ─────────────────────
-// Reduces JSON response size by ~70%, speeds up API for all clients
 app.use(compression());
 
-// ── CORS ─────────────────────────────────────────────────
+// ── CORS (credentials required for HttpOnly auth cookies) ─
+const defaultOrigins = [
+  'http://localhost:3000',
+  'https://hotelbook-app.vercel.app',
+];
+const envOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = envOrigins.length > 0 ? envOrigins : defaultOrigins;
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://hotelbook-app.vercel.app',
-  ],
+  origin(origin, callback) {
+    // Allow non-browser clients (no Origin) and configured frontends
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
   credentials: true,
 }));
 
-// ── Body parser ───────────────────────────────────────────
+app.use(cookieParser());
 app.use(express.json());
 
 // ── Global rate limiter — all routes ─────────────────────
