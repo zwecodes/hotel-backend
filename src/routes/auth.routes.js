@@ -14,6 +14,7 @@ const loginLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Too many login attempts. Please try again in 15 minutes.' },
   handler: (req, res, next, options) => {
     logger.warn('Rate limit hit on login', { ip: req.ip });
@@ -26,6 +27,7 @@ const registerLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Too many registration attempts. Please try again in an hour.' },
   handler: (req, res, next, options) => {
     logger.warn('Rate limit hit on register', { ip: req.ip });
@@ -38,6 +40,7 @@ const forgotLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Too many reset requests. Please try again later.' },
 });
 

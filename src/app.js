@@ -61,7 +61,8 @@ const globalLimiter = rateLimit({
     success: false,
     message: 'Too many requests. Please slow down and try again later.',
   },
-  skip: (req) => req.path === '/api/payments/webhook',
+  skip: (req) =>
+    process.env.NODE_ENV === 'test' || req.path === '/api/payments/webhook',
 });
 app.use(globalLimiter);
 

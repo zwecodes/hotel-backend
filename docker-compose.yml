@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: hotel_system_test
+      MYSQL_USER: hotel
+      MYSQL_PASSWORD: hotel
+    ports:
+      - "3307:3306"
+    volumes:
+      - hotel_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  hotel_mysql_data:

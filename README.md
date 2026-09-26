@@ -16,6 +16,22 @@ Repos: [hotel-frontend](https://github.com/zwecodes/hotel-frontend) · Live demo
 
 ---
 
+## Tests (Phase 3)
+
+```bash
+# Start local MySQL (port 3307)
+docker compose up -d
+
+cp .env.test.example .env.test
+npm test
+```
+
+Coverage priorities: last-room booking race, Stripe webhook signature, ownership, admin 403, search injection safety.
+
+GitHub Actions runs the same suite on every push to `main`.
+
+---
+
 ## Payments (Phase 2)
 
 | Endpoint | Purpose |
