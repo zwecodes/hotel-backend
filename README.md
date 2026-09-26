@@ -11,7 +11,39 @@ Repos: [hotel-frontend](https://github.com/zwecodes/hotel-frontend) · Live demo
 - Node.js + Express 5
 - mysql2 (TiDB Cloud / MySQL)
 - JWT access tokens (15m) + hashed refresh tokens in DB (HttpOnly cookies)
+- **Stripe Checkout** (sandbox) — booking marked `paid` only via signed webhook
 - bcryptjs, express-validator, express-rate-limit, Winston, node-cron
+
+---
+
+## Payments (Phase 2)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/payments/checkout` | Create Stripe Checkout Session (amount from booking row) |
+| `POST /api/payments/webhook` | Stripe-signed webhook → marks booking paid (idempotent) |
+| `PATCH /api/bookings/:id/pay-at-hotel` | Confirm without online payment |
+| `PATCH /api/bookings/:id/pay` | **Removed** (410) — mock pay disabled |
+
+Apply migrations (order matters):
+
+```bash
+mysql ... < migrations/001_auth_tokens.sql
+mysql ... < migrations/002_stripe_payments.sql
+```
+
+### Local Stripe webhook
+
+```bash
+# Terminal A — API
+npm run dev
+
+# Terminal B — forward webhooks
+stripe listen --forward-to localhost:5000/api/payments/webhook
+# paste the whsec_... into STRIPE_WEBHOOK_SECRET
+```
+
+Sandbox test card: `4242 4242 4242 4242` · any future expiry · any CVC.
 
 ---
 
@@ -20,19 +52,12 @@ Repos: [hotel-frontend](https://github.com/zwecodes/hotel-frontend) · Live demo
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/auth/register` | Create account (password min 10 chars) |
-| `POST /api/auth/login` | Sets `access_token` + `refresh_token` HttpOnly cookies |
-| `POST /api/auth/refresh` | Rotates refresh token, issues new access cookie |
-| `POST /api/auth/logout` | Revokes refresh token, clears cookies |
-| `GET /api/auth/me` | Current user (cookie or Bearer) |
-| `POST /api/auth/forgot-password` | Creates reset token (dev: returns/logs reset URL) |
-| `POST /api/auth/reset-password` | Sets new password, revokes sessions |
-
-Apply the migration before first run after pull:
-
-```bash
-# Against your TiDB/MySQL — does NOT drop data
-mysql ... < migrations/001_auth_tokens.sql
-```
+| `POST /api/auth/login` | Sets HttpOnly cookies |
+| `POST /api/auth/refresh` | Rotates refresh token |
+| `POST /api/auth/logout` | Revokes refresh token |
+| `GET /api/auth/me` | Current user |
+| `POST /api/auth/forgot-password` | Reset token (dev logs URL) |
+| `POST /api/auth/reset-password` | Set new password |
 
 ---
 
@@ -43,7 +68,7 @@ git clone https://github.com/zwecodes/hotel-backend.git
 cd hotel-backend
 npm install
 cp .env.example .env
-# fill DB_* and JWT_SECRET
+# fill DB_*, JWT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 npm run dev
 ```
 
@@ -55,11 +80,11 @@ API: `http://localhost:5000`
 |---|---|
 | `DB_*` | Database connection |
 | `JWT_SECRET` | Signs access JWTs |
-| `CORS_ORIGIN` | Allowed frontend origin(s), comma-separated |
-| `FRONTEND_URL` | Base URL for password-reset links |
-| `NODE_ENV` | `development` or `production` |
-
-In production, cookies use `SameSite=None; Secure` so the Vercel frontend can call this API with credentials.
+| `CORS_ORIGIN` | Allowed frontend origin(s) |
+| `FRONTEND_URL` | Password-reset + Stripe return URLs |
+| `STRIPE_SECRET_KEY` | `sk_test_...` sandbox key |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` from Stripe CLI or dashboard |
+| `STRIPE_CURRENCY` | Default `thb` |
 
 ---
 
@@ -68,18 +93,12 @@ In production, cookies use `SameSite=None; Secure` so the Vercel frontend can ca
 | Method | Path | Auth |
 |---|---|---|
 | GET | `/api/search` | No |
-| GET | `/api/hotels/:id` | No |
 | POST | `/api/bookings` | User |
-| PATCH | `/api/bookings/:id/pay` | User (mock — replace with provider webhook) |
+| POST | `/api/payments/checkout` | User |
+| POST | `/api/payments/webhook` | Stripe signature |
 | GET | `/api/admin/*` | Admin |
 
----
-
-## Production roadmap
-
-Hardening plan lives in the local monorepo folder `docs/PRODUCTION_ROADMAP.md` when you work from the combined workspace. Next up: real payments (Phase 2), then tests/CI.
-
-**Do not run `schema.sql` on a live database** — it drops all tables. Use `migrations/` for existing DBs.
+**Do not run `schema.sql` on a live database** — it drops all tables. Use `migrations/`.
 
 ---
 

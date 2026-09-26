@@ -223,48 +223,12 @@ router.patch('/:id/cancel', authMiddleware, async (req, res) => {
   }
 });
 
-/* PAY BOOKING */
+/* PAY BOOKING — mock path removed. Use Stripe Checkout. */
 router.patch('/:id/pay', authMiddleware, async (req, res) => {
-  try {
-    const userId    = req.user.id;
-    const bookingId = req.params.id;
-
-    const [bookings] = await pool.query('SELECT * FROM bookings WHERE id = ? AND user_id = ?', [bookingId, userId]);
-
-    if (bookings.length === 0) {
-      return res.status(404).json({ success: false, message: 'Booking not found' });
-    }
-
-    const booking = bookings[0];
-
-    if (booking.status === 'cancelled') {
-      return res.status(400).json({ success: false, message: 'Cannot pay for a cancelled booking' });
-    }
-    if (booking.payment_status === 'paid') {
-      return res.status(400).json({ success: false, message: 'Booking already paid' });
-    }
-
-    await pool.query(
-      `UPDATE bookings SET payment_status = 'paid', status = 'confirmed' WHERE id = ?`,
-      [bookingId]
-    );
-    logger.info('Booking paid', { bookingId, userId });
-
-    try {
-      const checkInFormatted = new Date(booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, message, booking_id) VALUES (?, 'booking_confirmed', '🎉 Booking Confirmed!', ?, ?)`,
-        [userId, `Payment received for booking #${bookingId}. You're all set for check-in on ${checkInFormatted}. Enjoy your stay!`, bookingId]
-      );
-    } catch (notifErr) {
-      logger.warn('Notification insert failed (non-fatal)', { error: notifErr.message, bookingId });
-    }
-
-    res.status(200).json({ success: true, message: 'Payment successful. Booking confirmed.' });
-  } catch (error) {
-    logger.error('Pay Booking Error', { error: error.message, bookingId: req.params.id });
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+  return res.status(410).json({
+    success: false,
+    message: 'Mock pay is disabled. Use POST /api/payments/checkout with { booking_id }.',
+  });
 });
 
 /* PAY AT HOTEL */

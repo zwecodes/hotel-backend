@@ -13,16 +13,14 @@ const adminRoutes   = require('./routes/admin.routes');
 const searchRoutes  = require('./routes/search.routes');
 const reviewRoutes  = require('./routes/review.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const stripeWebhook = require('./routes/payment.webhook');
 
 const app = express();
 
-// ── Trust proxy (required for Railway / reverse proxies) ──
 app.set('trust proxy', 1);
-
-// ── Compression — gzip all responses ─────────────────────
 app.use(compression());
 
-// ── CORS (credentials required for HttpOnly auth cookies) ─
 const defaultOrigins = [
   'http://localhost:3000',
   'https://hotelbook-app.vercel.app',
@@ -35,7 +33,6 @@ const allowedOrigins = envOrigins.length > 0 ? envOrigins : defaultOrigins;
 
 app.use(cors({
   origin(origin, callback) {
-    // Allow non-browser clients (no Origin) and configured frontends
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -45,9 +42,16 @@ app.use(cors({
 }));
 
 app.use(cookieParser());
+
+// Stripe webhook needs the raw body — mount before express.json()
+app.post(
+  '/api/payments/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeWebhook
+);
+
 app.use(express.json());
 
-// ── Global rate limiter — all routes ─────────────────────
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -57,10 +61,10 @@ const globalLimiter = rateLimit({
     success: false,
     message: 'Too many requests. Please slow down and try again later.',
   },
+  skip: (req) => req.path === '/api/payments/webhook',
 });
 app.use(globalLimiter);
 
-// ── Routes ───────────────────────────────────────────────
 app.use('/api/auth',     authRoutes);
 app.use('/api/users',    userRoutes);
 app.use('/api/hotels',   hotelRoutes);
@@ -70,13 +74,12 @@ app.use('/api/admin',    adminRoutes);
 app.use('/api/search',   searchRoutes);
 app.use('/api/reviews',  reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payments', paymentRoutes);
 
-// ── 404 handler ───────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// ── Global error handler ──────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });

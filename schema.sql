@@ -138,12 +138,16 @@ CREATE TABLE `bookings` (
   `total_price`      decimal(10,2) NOT NULL,
   `status`           enum('pending','confirmed','cancelled') DEFAULT 'pending',
   `payment_status`   enum('unpaid','paid','pay_at_hotel')    NOT NULL DEFAULT 'unpaid',
+  `stripe_checkout_session_id` varchar(255) DEFAULT NULL,
+  `stripe_payment_intent_id`   varchar(255) DEFAULT NULL,
   `created_at`       timestamp     DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       timestamp     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_b_user_id`       (`user_id`),
   KEY `idx_b_status`        (`status`),
   KEY `idx_b_check_in_date` (`check_in_date`),
+  UNIQUE KEY `uq_stripe_checkout_session` (`stripe_checkout_session_id`),
+  UNIQUE KEY `uq_stripe_payment_intent` (`stripe_payment_intent_id`),
   CONSTRAINT `fk_b_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
